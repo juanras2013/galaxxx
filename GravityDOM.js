@@ -1,8 +1,8 @@
 /**
- * GravityDOM.js v1.0.2
+ * GravityDOM.js v1.0.3
  * Plugin experimental que aplica físicas de gravedad y rebote a elementos HTML.
  * Cero dependencias externas. Motor matemático nativo. Corriendo siempre sin restricciones.
- * Parcheado contra la selección y arrastre nativo de texto del navegador.
+ * Parche definitivo contra la selección de texto en PC y móviles.
  */
 (function (window, document) {
     'use strict';
@@ -27,16 +27,18 @@
         scanItems: function () {
             const elements = document.querySelectorAll('.gravity-item');
             elements.forEach((el, index) => {
-                // Forzar posición absoluta y deshabilitar selección
+                // Forzar propiedades CSS para anular la selección nativa
                 el.style.position = 'fixed';
                 el.style.cursor = 'grab';
                 el.style.userSelect = 'none';
                 el.style.webkitUserSelect = 'none';
                 el.style.mozUserSelect = 'none';
                 el.style.msUserSelect = 'none';
+                el.style.touchAction = 'none'; // Evita el scroll nativo en móviles al arrastrar
 
-                // 🚨 PARCHE CRÍTICO: Evita que el navegador intente arrastrar el texto de forma nativa
+                // Bloquear el arrastre de texto e imágenes por defecto del navegador
                 el.addEventListener('dragstart', (e) => e.preventDefault());
+                el.addEventListener('selectstart', (e) => e.preventDefault());
 
                 const rect = el.getBoundingClientRect();
 
@@ -51,15 +53,21 @@
                     isDragging: false
                 });
 
-                // Eventos de interacción física
+                // Eventos de interacción física (Mouse y Pantalla Táctil)
                 el.addEventListener('mousedown', (e) => this.startDrag(index, e));
-                el.addEventListener('touchstart', (e) => this.startDrag(index, e.touches[0]), { passive: true });
+                el.addEventListener('touchstart', (e) => {
+                    // CORREGIDO: Pasar solo el primer dedo activo para capturar clientX y clientY
+                    if (e.touches.length > 0) this.startDrag(index, e.touches[0]);
+                }, { passive: false });
             });
         },
 
         setupEvents: function () {
+            // Seguimiento global del movimiento del mouse o dedo
             window.addEventListener('mousemove', (e) => this.handleMove(e));
-            window.addEventListener('touchmove', (e) => this.handleMove(e.touches[0]), { passive: true });
+            window.addEventListener('touchmove', (e) => {
+                if (e.touches.length > 0) this.handleMove(e.touches[0]);
+            }, { passive: false });
 
             window.addEventListener('mouseup', () => this.stopDrag());
             window.addEventListener('touchend', () => this.stopDrag());
@@ -74,9 +82,6 @@
         },
 
         startDrag: function (index, e) {
-            // Cancelar selección si el mouse se desliza rápido fuera del elemento
-            e.preventDefault?.(); 
-
             this.activeDragItem = this.items[index];
             this.activeDragItem.isDragging = true;
             this.activeDragItem.el.style.cursor = 'grabbing';
@@ -87,6 +92,10 @@
             this.mouse.y = e.clientY;
             this.mouse.lastX = e.clientX;
             this.mouse.lastY = e.clientY;
+
+            // Bloqueo total de selección en todo el documento mientras arrastras
+            document.body.style.userSelect = 'none';
+            document.body.style.webkitUserSelect = 'none';
         },
 
         handleMove: function (e) {
@@ -112,6 +121,10 @@
                 this.activeDragItem.vx = this.mouse.vx * 0.8;
                 this.activeDragItem.vy = this.mouse.vy * 0.8;
                 this.activeDragItem = null;
+                
+                // Restaurar la selección normal del documento al soltar
+                document.body.style.userSelect = '';
+                document.body.style.webkitUserSelect = '';
             }
         },
 
