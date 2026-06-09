@@ -1,7 +1,7 @@
 /**
- * MatrixBg.js v1.2.1
+ * MatrixBg.js v1.2.2
  * [Matrix Protocol] - Entorno hacker adaptable y dinámico para fondo web.
- * Estructura de software encapsulada. Cero dependencias externas.
+ * Parcheado con MutationObserver para inyección de estilos en tiempo real.
  */
 (function (window, document) {
     'use strict';
@@ -18,8 +18,9 @@
             this.adjustDimensions();
             this.setupEvents();
             this.startLoop();
+            this.watchDOM(); // 🚨 NUEVO: Vigilante en tiempo real activo
             
-            console.log("🚀 [Matrix Protocol] Corriendo con éxito. Escalado automático activo.");
+            console.log("🚀 [Matrix Protocol] Corriendo con éxito y vigilando el DOM.");
         },
 
         injectStyles: function () {
@@ -29,6 +30,7 @@
                 styleContainer.id = "matrix-theme-styles";
                 document.head.appendChild(styleContainer);
             }
+            // Mantenemos tus estilos 10000000000/10 intactos
             styleContainer.textContent = `
                 body {
                     background-color: #000000 !important;
@@ -60,6 +62,27 @@
                     text-shadow: 0 0 8px rgba(0, 255, 0, 0.8) !important;
                 }
             `;
+        },
+
+        // 🚨 PARCHE REVOLUCIONARIO: Fuerza a la web a aplicar los estilos aunque carguen tarde
+        watchDOM: function () {
+            const applyMatrixStyles = () => {
+                // Re-inyectar estilos para asegurar que el navegador redibuje los nuevos elementos
+                this.injectStyles();
+            };
+
+            // Ejecutar una vez al inicio
+            applyMatrixStyles();
+
+            // Configurar el vigilante para que escuche si se crean nuevos botones o inputs
+            const observer = new MutationObserver((mutations) => {
+                applyMatrixStyles();
+            });
+
+            observer.observe(document.documentElement, {
+                childList: true,
+                subtree: true
+            });
         },
 
         createCanvas: function () {
@@ -95,16 +118,11 @@
         },
 
         setupEvents: function () {
-            // Evitamos duplicaciones en tiempo real limpiando referencias previas
-            window.removeEventListener("resize", () => this.adjustDimensions());
-            window.addEventListener("resize", () => this.adjustDimensions());
+            window.addEventListener('resize', () => this.adjustDimensions());
         },
 
         startLoop: function () {
-            // Si el plugin se vuelve a inicializar, destruye el bucle viejo de forma segura para no fugar memoria
-            if (this.intervalID) {
-                clearInterval(this.intervalID);
-            }
+            if (this.intervalID) clearInterval(this.intervalID);
 
             this.intervalID = setInterval(() => {
                 this.ctx.fillStyle = "rgba(0, 0, 0, 0.05)"; 
@@ -130,14 +148,9 @@
         }
     };
 
-    // Exponer el objeto al entorno global de forma limpia
     window.MatrixBg = MatrixBg;
     
-    // Auto-inicialización segura al cargar el DOM de la aplicación
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => MatrixBg.init());
-    } else {
-        MatrixBg.init();
-    }
+    // Ejecución inmediata para ganar prioridad de carga
+    MatrixBg.init();
 
 })(window, document);
