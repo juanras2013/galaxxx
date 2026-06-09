@@ -1,8 +1,8 @@
 /**
- * GravityDOM.js v1.0.3
+ * GravityDOM.js v1.0.5
  * Plugin experimental que aplica físicas de gravedad y rebote a elementos HTML.
  * Cero dependencias externas. Motor matemático nativo. Corriendo siempre sin restricciones.
- * Parche definitivo contra la selección de texto en PC y móviles.
+ * Parche definitivo contra bloqueos inferiores e inyección de físicas por Hover.
  */
 (function (window, document) {
     'use strict';
@@ -11,8 +11,9 @@
         init: function (config = {}) {
             this.settings = {
                 gravity: config.gravity ?? 0.6,      // Fuerza de gravedad hacia abajo
-                bounce: config.bounce ?? 0.7,        // Coeficiente de restitución (0 = no rebota, 1 = rebote perfecto)
+                bounce: config.bounce ?? 0.7,        // Coeficiente de restitución (rebote)
                 friction: config.friction ?? 0.98,   // Fricción del aire
+                jumpForce: config.jumpForce ?? -12   // Impulso hacia arriba cuando le pasas el mouse por encima
             };
 
             this.items = [];
@@ -27,16 +28,14 @@
         scanItems: function () {
             const elements = document.querySelectorAll('.gravity-item');
             elements.forEach((el, index) => {
-                // Forzar propiedades CSS para anular la selección nativa
                 el.style.position = 'fixed';
                 el.style.cursor = 'grab';
                 el.style.userSelect = 'none';
                 el.style.webkitUserSelect = 'none';
                 el.style.mozUserSelect = 'none';
                 el.style.msUserSelect = 'none';
-                el.style.touchAction = 'none'; // Evita el scroll nativo en móviles al arrastrar
+                el.style.touchAction = 'none'; 
 
-                // Bloquear el arrastre de texto e imágenes por defecto del navegador
                 el.addEventListener('dragstart', (e) => e.preventDefault());
                 el.addEventListener('selectstart', (e) => e.preventDefault());
 
@@ -53,20 +52,27 @@
                     isDragging: false
                 });
 
-                // Eventos de interacción física (Mouse y Pantalla Táctil)
+                // Eventos de arrastre clásicos
                 el.addEventListener('mousedown', (e) => this.startDrag(index, e));
                 el.addEventListener('touchstart', (e) => {
-                    // CORREGIDO: Pasar solo el primer dedo activo para capturar clientX y clientY
-                    if (e.touches.length > 0) this.startDrag(index, e.touches[0]);
+                    if (e.touches && e.touches.length > 0) this.startDrag(index, e.touches[0]);
                 }, { passive: false });
+
+                // 🚨 NUEVA MÉTODOLOGÍA: Si pasas el mouse por encima, el elemento salta automáticamente
+                el.addEventListener('mouseenter', () => {
+                    const item = this.items[index];
+                    if (!item.isDragging) {
+                        item.vy = this.settings.jumpForce; // Aplica impulso vertical hacia arriba
+                        item.vx += (Math.random() - 0.5) * 8; // Le da un leve desvío horizontal aleatorio
+                    }
+                });
             });
         },
 
         setupEvents: function () {
-            // Seguimiento global del movimiento del mouse o dedo
             window.addEventListener('mousemove', (e) => this.handleMove(e));
             window.addEventListener('touchmove', (e) => {
-                if (e.touches.length > 0) this.handleMove(e.touches[0]);
+                if (e.touches && e.touches.length > 0) this.handleMove(e.touches[0]);
             }, { passive: false });
 
             window.addEventListener('mouseup', () => this.stopDrag());
@@ -93,7 +99,6 @@
             this.mouse.lastX = e.clientX;
             this.mouse.lastY = e.clientY;
 
-            // Bloqueo total de selección en todo el documento mientras arrastras
             document.body.style.userSelect = 'none';
             document.body.style.webkitUserSelect = 'none';
         },
@@ -109,8 +114,21 @@
             this.mouse.lastY = this.mouse.y;
 
             if (this.activeDragItem) {
-                this.activeDragItem.x = this.mouse.x - (this.activeDragItem.width / 2);
-                this.activeDragItem.y = this.mouse.y - (this.activeDragItem.height / 2);
+                const screenW = window.innerWidth;
+                const screenH = window.innerHeight;
+
+                let targetX = this.mouse.x - (this.activeDragItem.width / 2);
+                let targetY = this.mouse.y - (this.activeDragItem.height / 2);
+
+                // Contención estricta en el arrastre dinámico
+                if (targetX < 0) targetX = 0;
+                if (targetX + this.activeDragItem.width > screenW) targetX = screenW - this.activeDragItem.width;
+                if (targetY < 0) targetY = 0;
+                // Margen de seguridad de 20px para que nunca desaparezca abajo al arrastrarlo
+                if (targetY + this.activeDragItem.height > screenH - 20) targetY = screenH - this.activeDragItem.height - 20;
+
+                this.activeDragItem.x = targetX;
+                this.activeDragItem.y = targetY;
             }
         },
 
@@ -122,7 +140,6 @@
                 this.activeDragItem.vy = this.mouse.vy * 0.8;
                 this.activeDragItem = null;
                 
-                // Restaurar la selección normal del documento al soltar
                 document.body.style.userSelect = '';
                 document.body.style.webkitUserSelect = '';
             }
@@ -143,8 +160,9 @@
                     p.x += p.vx;
                     p.y += p.vy;
 
-                    if (p.y + p.height > screenH) {
-                        p.y = screenH - p.height;
+                    // 🚨 CORRECCIÓN DEL SUELO FÍSICO: Añadido margen seguro de 20px
+                    if (p.y + p.height > screenH - 20) {
+                        p.y = screenH - p.height - 20;
                         p.vy = -p.vy * this.settings.bounce;
                         p.vx *= 0.95; 
                     }
