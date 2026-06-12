@@ -15,7 +15,7 @@ Cargar los módulos en cualquier proyecto web es tan fácil como copiar este blo
      * Descarga e inyecta módulos de software de forma centralizada.
      */
     async function loadPlugin(fileName) {
-        const url = `https://githubusercontent.com{fileName}`;
+        const url = `https://githubusercontent.com/JUanras2013/galaxxx/main/${fileName}`;
         try {
             const response = await fetch(url);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
